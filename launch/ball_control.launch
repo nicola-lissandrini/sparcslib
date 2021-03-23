@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+
+<launch>
+	<rosparam command="load" file="$(find sparcslib)/config/force_control_node.yaml" />
+
+	<node name="force_control_node" pkg="sparcslib" type="force_control_node" output="screen" />
+</launch>

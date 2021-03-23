@@ -1,0 +1,9 @@
+uav_pid_ctrl1:
+  rate: 100
+  state_topic: odom
+  ref_topic: cmd_pos
+  command_topic: cmd_vel
+  mass: 1.027
+  inertia: {ixx: 2.3951e-5, iyy: 2.3951e-5, izz: 3.2347e-5}
+  pid: {p: 30, i: 0, d: 20}
+  torque: {x: -0.01, y: -0.01}

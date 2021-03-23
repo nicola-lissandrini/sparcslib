@@ -1,0 +1,17 @@
+#ifndef FORCECONTROL_NODE_H
+#define FORCECONTROL_NODE_H
+
+#define INCLUDE_EIGEN
+
+#ifndef NODE_NAME
+# define NODE_NAME "target_trajectory"
+#endif
+#include "pd_rosnode.h"
+
+class ForceControlNode
+{
+public:
+	ForceControlNode();
+};
+
+#endif // FORCECONTROL_NODE_H

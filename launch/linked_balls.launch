@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+
+<launch>
+	<arg name="debug" default="false"/>
+	<arg name="gui" default="true"/>
+	<arg name="paused" default="false"/>
+	<arg name="verbose" default="true"/>
+	<arg name="simulink" default="false" />
+	
+	<include file="$(find gazebo_ros)/launch/empty_world.launch">
+		<arg name="world_name" value="$(find rotors_gazebo)/worlds/basic.world" />
+		<arg name="debug" value="$(arg debug)" />
+		<arg name="paused" value="$(arg paused)" />
+		<arg name="gui" value="$(arg gui)" />
+		<arg name="verbose" value="$(arg verbose)"/>
+	</include>
+
+	<param name="linked_balls_description" command="$(find xacro)/xacro.py $(find sparcslib)/models/linked_balls.urdf.xacro" />
+
+	<node name="spawn_linked_balls" pkg="gazebo_ros" type="spawn_model"
+		args="-param linked_balls_description
+			  -sdf
+			  -x 0
+			  -y 0
+			  -z 0.1
+			  -model linked_balls"
+		respawn="false" output="screen" />
+	
+	<include file="$(find sparcslib)/launch/ball_control.launch" unless="$(eval simulink)" />
+</launch>

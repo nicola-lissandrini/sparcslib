@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+
+<launch>
+	<rosparam file="$(find sparcslib)/config/uav_pid_ctrl.yaml" command="load" />
+
+	<node pkg="sparcslib" type="uav_pid_ctrl" name="uav_pid_ctrl" output="screen" />
+</launch>

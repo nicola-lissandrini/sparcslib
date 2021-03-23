@@ -1,0 +1,18 @@
+<?xml version='1.0'?>
+<sdf version='1.4'>
+  <model name="prediction_printer">
+  	<static>true</static>
+    <pose>0 0 0 0 0 0</pose>
+  	<link name="trajectory_printer_base_link">
+  		<visual name="trajectory_printer_visual">
+  			<plugin name="trajectory_printer_plugin" filename="libtrajectory_printer.so">
+  				<topic>/draw_path</topic>
+  			</plugin>
+	  		<pose>0 0 0 0 0 0</pose>
+			<geometry>
+				<empty />
+			</geometry>
+  		</visual>
+  	</link>
+  </model>
+</sdf>
