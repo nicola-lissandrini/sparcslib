@@ -1,6 +1,7 @@
 #include "uav_pid_ctrl.h"
 
 #include <Eigen/Geometry>
+#include <unsupported/Eigen/EulerAngles>
 
 using namespace ros;
 using namespace std;
@@ -16,16 +17,34 @@ UavPidControl::UavPidControl (const Quadrotor *_quadrotor):
 void UavPidControl::setParams (const ControlParams &_params)
 {
 	Controller::setParams (_params);
-	ControlParams pidParams(PID_GAINS_NO);
 
+	// Position PID
+	ControlParams positionParams(PID_GAINS_NO);
 
-	pidParams.gains << _params.gains[1], _params.gains[2], _params.gains[3];
-	pidParams.inputSize = D3;
-	pidParams.outputSize = D3;
-	pidParams.stateSize = 0;
-	pidParams.sampleTime = _params.sampleTime;
+	positionParams["gains"] << _params["position_pid"];
+	positionParams.inputSize = D3;
+	positionParams.outputSize = D3;
+	positionParams.stateSize = 0;
+	positionParams.sampleTime = _params.sampleTime;
 
-	pidController.setParams (pidParams);
+	positionPid.setParams (positionParams);
+
+	// Angles PID
+	ControlParams rpyParams(PID_GAINS_NO);
+	rpyParams["gains"] << _params["rpy_pid"];
+	rpyParams.inputSize = D3;
+	rpyParams.outputSize = D3;
+	rpyParams.stateSize = 0;
+	rpyParams.sampleTime = _params.sampleTime;
+
+	rpyPid.setParams (rpyParams);
+}
+
+#define CONVERT_RANGE(v) (fmod ((v)+M_PI,2*M_PI)-M_PI)
+
+void convertRanges (VectorXd &angles) {
+	for (int i = 0; i < angles.size (); i++)
+		angles[i] = CONVERT_RANGE(angles[i]);
 }
 
 void UavPidControl::updateInput (const VectorXd &state, const VectorXd &ref)
@@ -33,35 +52,46 @@ void UavPidControl::updateInput (const VectorXd &state, const VectorXd &ref)
 	if (!isReady ())
 		return;
 
-	Vector3d gravityCompensationWorld = Vector3d::UnitZ () * 9.82 * params.gains[0];
-	Vector3d gravityCompensationBody;
-	Vector3d controlForceWorld, controlForceBody;
+	// Variables initialization
+	Vector3d gravityCompensationWorld = Vector3d::UnitZ () * 9.82 * params["mass"];
 	Vector3d statePos = state.head<D3> ();
 	Vector4d stateOrient = state.tail<D4> ();
-	Quaterniond pose= Quaterniond (stateOrient[0],stateOrient[1], stateOrient[2], stateOrient[3]);
-	Matrix3d worldToBody = pose.toRotationMatrix ();
-	Vector3d thrust, angularAcceleration;
+	Quaterniond orientation = Quaterniond (stateOrient[0], stateOrient[1], stateOrient[2], stateOrient[3]);
 
-	pidController.updateInput (statePos, ref);
-	controlForceWorld = pidController.getControl ();
-
-	controlForceBody = worldToBody * controlForceWorld;
-	gravityCompensationBody = worldToBody * gravityCompensationWorld;
-
-	thrust = Vector3d::UnitZ () * (controlForceBody + gravityCompensationBody).dot (Vector3d::UnitZ ());
-
-	toScope (0, thrust);
-	angularAcceleration << params.gains[4] * controlForceWorld[1], params.gains[5] * controlForceWorld[0], 0;
+	// Position PID: position error -> 3D world acceleration
+	positionPid.updateInput (statePos, ref);
 
 
-	Matrix3d inertia = Vector3d (params.gains[6], params.gains[7], params.gains[8]).asDiagonal ();
+	Vector3d controlForce = positionPid.getControl () * params["mass"];
+	double thrustValue = controlForce[2];
 
-	control = quadrotor->allocate (thrust,  inertia * angularAcceleration);
+	Vector3d forceCommand = Vector3d::UnitZ () * thrustValue + gravityCompensationWorld;
+	//Vector3d stateRpy = EulerAnglesZXYd::FromRotation<false, false, false> (orientation).angles ();
+	Vector3d stateRpy = orientation.toRotationMatrix ().eulerAngles (2, 1, 0);
+	Vector3d targetRpy;
 
-	toScope (1,Vector3d (0, 0, (worldToBody * (worldToBody.transpose ()) - Matrix3d::Identity ()).norm ()));
+	convertRanges (stateRpy);
+
+	if (abs (thrustValue) < 0.0001)
+		 targetRpy = Vector3d::Zero ();
+	else
+		targetRpy = params["mass"][0] * 1 / thrustValue * Vector3d(0,1,1).asDiagonal () * targetRpy;
+
+	rpyPid.updateInput (stateRpy, targetRpy);
+	Vector3d rpyCommand = rpyPid.getControl ();
+
+	cout << stateRpy << endl << endl;
+
+	// Force - torques -> motor speeds
+	Matrix3d inertia = params["inertia"].asDiagonal ();
+	Vector3d torqueCommand = inertia * Vector3d (rpyCommand[1], -rpyCommand[2], rpyCommand[0]);
+
+	toScope (0, rpyCommand);
+
+	control = 0 * quadrotor->allocate (forceCommand,  torqueCommand);
 }
 
-void UavPidControlNode::stateConvertMsg(VectorXd &_state, const nav_msgs::Odometry &_stateMsg)
+void UavPidControlNode::stateConvertMsg (VectorXd &_state, const nav_msgs::Odometry &_stateMsg)
 {
 	_state << _stateMsg.pose.pose.position.x,
 			_stateMsg.pose.pose.position.y,
@@ -101,22 +131,28 @@ UavPidControlNode::UavPidControlNode ():
 
 void UavPidControlNode::initControl ()
 {
-	ControlParams ctrlParams(UAV_GAINS_NO);
+	ControlParams ctrlParams;
 
 	ctrlParams.inputSize = D3;
 	ctrlParams.stateSize = D3 + D4;
 	ctrlParams.outputSize = QUAD_PROP_N;
 	ctrlParams.sampleTime = 1/paramDouble(params["rate"]);	// TODO: read from parameter server
 
-	ctrlParams.gains << paramDouble(params["mass"]),
-			paramDouble(params["pid"]["p"]),
-			paramDouble(params["pid"]["i"]),
-			paramDouble(params["pid"]["d"]),
-			paramDouble(params["torque"]["x"]),
-			paramDouble(params["torque"]["y"]),
-			paramDouble(params["inertia"]["ixx"]),
-			paramDouble(params["inertia"]["iyy"]),
-			paramDouble(params["inertia"]["izz"]);
+	ctrlParams.params = {
+		{"mass", Eigen::Scalard (paramDouble(params["mass"]))},
+		{"position_pid", Eigen::Vector3d (
+		 paramDouble(params["position_pid"]["p"]),
+		 paramDouble(params["position_pid"]["i"]),
+		 paramDouble(params["position_pid"]["d"]))},
+		{"rpy_pid", Eigen::Vector3d (
+		 paramDouble(params["rpy_pid"]["p"]),
+		 paramDouble(params["rpy_pid"]["i"]),
+		 paramDouble(params["rpy_pid"]["d"]))},
+		{"inertia", Eigen::Vector3d (
+		 paramDouble(params["inertia"]["ixx"]),
+		 paramDouble(params["inertia"]["iyy"]),
+		 paramDouble(params["inertia"]["izz"]))}
+	};
 
 	uavController.setParams (ctrlParams);
 }

@@ -4,7 +4,7 @@ using namespace Eigen;
 
 void Controller::init()
 {
-	control.resize (params.outputSize);
+	control.resize (params.controlSize);
 }
 
 Controller::Controller(int _gainsNumber):
@@ -16,8 +16,6 @@ Controller::Controller(int _gainsNumber):
 
 void Controller::setParams(const ControlParams &_params)
 {
-	assert (_params.gains.size () == params.gains.size ());
-
 	params = _params;
 	flags.set ("params_set");
 
@@ -31,7 +29,7 @@ ControlParams Controller::getParams() {
 void Pid::init () {
 	Controller::init ();
 
-	derivator = new Derivator (params.inputSize, params.sampleTime);
+	derivator = new Derivator (params.stateSize, params.sampleTime);
 	derivator->initZero ();
 
 	flags.set ("setup");
@@ -44,5 +42,5 @@ void Pid::updateInput (const Eigen::VectorXd &state, const Eigen::VectorXd &ref)
 	VectorXd error = ref - state;
 	VectorXd derivative = derivator->step (error);
 
-	control = params.gains[0] * error + params.gains[2] * derivative;
+	control = params["gains"][0] * error + params["gains"][2] * derivative;
 }

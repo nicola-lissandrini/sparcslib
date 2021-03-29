@@ -56,6 +56,7 @@ public:
 	virtual void updateState (const Eigen::VectorXd &input = Eigen::VectorXd ()) = 0;
 
 	void setModel (const Model *_model);
+	bool isDiscrete ();
 };
 
 

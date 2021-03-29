@@ -18,7 +18,8 @@
 
 class UavPidControl : public Controller
 {
-	Pid pidController;
+	Pid positionPid;
+	Pid rpyPid;
 	const Quadrotor *quadrotor;
 
 public:
@@ -27,6 +28,7 @@ public:
 	void setParams (const ControlParams &_params);
 	void updateInput (const Eigen::VectorXd &state, const Eigen::VectorXd &ref);
 };
+
 
 class UavPidControlNode :
 		public SparcsControlNode<nav_msgs::Odometry, geometry_msgs::Pose, mav_msgs::Actuators>

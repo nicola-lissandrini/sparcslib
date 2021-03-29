@@ -56,9 +56,11 @@ void Uav::computeAllocationMatrix()
 		Vector3d position = propeller.pose.translation ();
 		Vector3d axis = rotationMatrix * Vector3d::UnitZ ();
 
+
 		allocationMatrix.template block<D3, 1> (0, i) = propeller.thrustFactor * axis;
 		allocationMatrix.template block<D3, 1> (3, i) = propeller.thrustFactor * position.cross (axis)
 				+ propeller.dragSign * propeller.dragFactor * axis;
+		std::cout << position  << " aaA " << propeller.dragSign << "\nbubu\n" << endl;
 		i++;
 	}
 }

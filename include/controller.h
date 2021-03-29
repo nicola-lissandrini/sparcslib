@@ -7,16 +7,45 @@
 #include "common.h"
 #include "systems.h"
 #include <Eigen/Core>
+#include <map>
+
+namespace Eigen {
+typedef Matrix<double, 1, 1> Scalard;
+}
+
+#define CTR_ASYNC (-1)
 
 struct ControlParams {
-	int inputSize, outputSize, stateSize;
+
+	int controlSize, stateSize, refSize;
 	double sampleTime;
-	Eigen::VectorXd gains;
+	std::map<std::string, Eigen::VectorXd> params;
 
 	ControlParams (int _gainsNumber):
-		gains(_gainsNumber)
+		params({{"gains", Eigen::VectorXd (_gainsNumber)}})
 	{}
+
+	ControlParams () {}
+
+	Eigen::VectorXd &operator[] (const std::string &_name) {
+		return params[_name];
+	}
+
+	Eigen::VectorXd operator[] (const std::string &_name) const {
+		return params.at (_name);
+	}
 };
+
+std::ostream &operator<<(std::ostream &os, const ControlParams &dt) {
+	os << "outputSize: " << dt.controlSize <<
+		  "\nstateSize: " << dt.stateSize <<
+		  "\nrefSize: " << dt.refSize <<
+		  "\nparams: ";
+	for (auto& t : dt.params)
+		os << "{" << t.first << ": " << t.second << "}\n";
+
+	return os;
+}
 
 class Controller
 {
@@ -28,7 +57,7 @@ protected:
 	virtual void init ();
 
 public:
-	Controller (int _gainsNumber);
+	Controller (int _gainsNumber = 0);
 
 	void setParams (const ControlParams &_params);
 	ControlParams getParams ();

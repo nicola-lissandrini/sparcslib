@@ -45,8 +45,6 @@ struct Propeller
 	// Propeller (const XmlRpc::XmlRpcValue &param);
 };
 
-#define D3 3
-#define D4 4
 #define CW_SIGN (-1.0L)
 #define CCW_SIGN (1.0L)
 

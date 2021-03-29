@@ -4,6 +4,8 @@
 #include "controller.h"
 #include "sparcsnode.h"
 
+#include <std_msgs/Empty.h>
+
 template<class StateT, class RefT, class CommandT, bool sync = false>
 class SparcsControlNode : public SparcsNode
 {
@@ -15,7 +17,7 @@ class SparcsControlNode : public SparcsNode
 	void stateCallback ( StateT newStateMsg) {
 		stateMsg = newStateMsg;
 
-		if (sync)
+		if (!sync)
 			controlStep ();
 	}
 
@@ -28,13 +30,14 @@ class SparcsControlNode : public SparcsNode
 		ControlParams controlParams = controller->getParams ();
 		Eigen::VectorXd command;
 		Eigen::VectorXd state(controlParams.stateSize);
-		Eigen::VectorXd ref(controlParams.inputSize);
+		Eigen::VectorXd ref(controlParams.refSize);
 
 		stateConvertMsg (state, stateMsg);
-		refConvertMsg (ref, refMsg);
+
+		if (controlParams.refSize > 0)
+			refConvertMsg (ref, refMsg);
 
 		controller->updateInput (state, ref);
-
 		command = controller->getControl ();
 
 
@@ -52,7 +55,7 @@ protected:
 		if (!controller->isReady ())
 			return 0;
 
-		if (!sync) {
+		if (sync) {
 			// Get command
 			int ret = controlStep ();
 
@@ -69,16 +72,19 @@ protected:
 
 protected:
 	virtual void stateConvertMsg (Eigen::VectorXd &_state, const StateT &_stateMsg) = 0;
-	virtual void refConvertMsg (Eigen::VectorXd &_ref, const RefT &_refMsg) = 0;
+	virtual void refConvertMsg (Eigen::VectorXd &_ref, const RefT &_refMsg) {}
 	virtual void commandConvertMsg (CommandT &_commandMsg, const Eigen::VectorXd &_command) = 0;
 
 	virtual void initROS () {
-		std::string stateTopic = paramString (params["state_topic"]);
-		std::string refTopic = paramString (params["ref_topic"]);
-		std::string commandTopic = paramString (params["command_topic"]);
+		std::string stateTopic = paramString (params,"state_topic");
+		std::string refTopic;
+		if (!std::is_same<RefT, std_msgs::Empty> ())
+			refTopic = paramString (params,"ref_topic");
+		std::string commandTopic = paramString (params,"command_topic");
 
-		addSub ("state", stateTopic, 1, &SparcsControlNode::stateCallback);
-		addSub ("ref", refTopic, 1, &SparcsControlNode::refCallback);
+		addSub ("state", stateTopic, 1, &SparcsControlNode::stateCallback, ros::TransportHints ().tcpNoDelay ().unreliable ());
+		if (!std::is_same<RefT, std_msgs::Empty> ())
+			addSub ("ref", refTopic, 1, &SparcsControlNode::refCallback);
 		addPub<CommandT> ("command", commandTopic, 1);
 	}
 

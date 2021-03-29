@@ -110,8 +110,8 @@ protected:
 	}
 
 	template<class T>
-	void publish (const std::string &name, const T &msg) {
-		publishers[name].publish (msg);
+	void publish (const std::string &name, const T &msg) const {
+		publishers.at(name).publish (msg);
 	}
 
 	virtual void initParams ();
